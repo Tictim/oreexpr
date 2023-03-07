@@ -2,7 +2,6 @@ package gregtech.common.covers.filter.oreglob.node;
 
 import lol.Lists;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -52,18 +51,23 @@ public class OreGlobNodes{
 		MatchDescription union = MatchDescription.IMPOSSIBLE;
 		for(int i = 0; i<expressions.size(); i++){
 			OreGlobNode expr = expressions.get(i);
-			if(expr.isImpossibleToMatch()){
-				expressions.remove(i--); // redundant term
-			}else if(expr.isEverything()){
+			if(expr.isEverything()){
 				return expr; // short circuit
-			}else{
-				MatchDescription newUnion = union.or(expr.getMatchDescription());
-				if(newUnion==MatchDescription.EVERYTHING){
-					return everything(); // short circuit
-				}else if(union==newUnion&&newUnion.isComplete()){
-					expressions.remove(i--); // trivial term
+			}else if(union.covers(expr.getMatchDescription())){
+				expressions.remove(i--); // trivial term
+				continue;
+			}else if(expr.getMatchDescription().covers(union)){
+				// everything before was trivial
+				while(i!=0){
+					expressions.remove(0);
+					i--;
 				}
-				union = newUnion;
+				union = expr.getMatchDescription();
+			}else{
+				union = union.or(expr.getMatchDescription());
+			}
+			if(union==MatchDescription.EVERYTHING){
+				return everything(); // short circuit
 			}
 		}
 		switch(expressions.size()){
@@ -85,16 +89,21 @@ public class OreGlobNodes{
 			OreGlobNode expr = expressions.get(i);
 			if(expr.isImpossibleToMatch()){
 				return expr; // short circuit
-			}else if(expr.isEverything()){
-				expressions.remove(i--); // redundant term
-			}else{
-				MatchDescription newIntersection = intersection.and(expr.getMatchDescription());
-				if(newIntersection==MatchDescription.IMPOSSIBLE){
-					return impossible(); // short circuit
-				}else if(intersection==newIntersection&&newIntersection.isComplete()){
-					expressions.remove(i--); // trivial term
+			}else if(expr.getMatchDescription().covers(intersection)){
+				expressions.remove(i--); // trivial term
+				continue;
+			}else if(intersection.covers(expr.getMatchDescription())){
+				// everything before was trivial
+				while(i!=0){
+					expressions.remove(0);
+					i--;
 				}
-				intersection = newIntersection;
+				intersection = expr.getMatchDescription();
+			}else{
+				intersection = intersection.and(expr.getMatchDescription());
+			}
+			if(intersection==MatchDescription.IMPOSSIBLE){
+				return impossible(); // short circuit
 			}
 		}
 		switch(expressions.size()){
@@ -117,6 +126,7 @@ public class OreGlobNodes{
 			if(expr.isImpossibleToMatch()){
 				expressions.remove(i1--); // redundant term
 			}else if(expr.isEverything()){
+				expressions.remove(i1--);
 				inverted = !inverted; // same as applying NOT to every other term
 			}else{
 				MatchDescription desc = expr.getMatchDescription();
@@ -128,7 +138,7 @@ public class OreGlobNodes{
 							expressions.remove(i1--);
 							expressions.remove(i2--);
 						}else if(desc.inverse()==desc2){
-							// both terms gets combined into true
+							// both terms get combined into true
 							expressions.remove(i1--);
 							expressions.remove(i2--);
 							inverted = !inverted;
@@ -142,12 +152,10 @@ public class OreGlobNodes{
 				return inverted ? everything() : impossible();
 			case 1:
 				OreGlobNode node = expressions.get(0);
-				if(inverted) not(node);
-				return node;
+				return inverted ? not(node) : node;
 		}
 		BranchNode node = new BranchNode(BranchType.XOR, expressions);
-		if(inverted) not(node);
-		return node;
+		return inverted ? not(node) : node;
 	}
 
 	public static OreGlobNode branch(BranchType type, List<OreGlobNode> expressions){
@@ -230,6 +238,7 @@ public class OreGlobNodes{
 				n1.amount++;
 				if(!n1.more){
 					n1.more = true;
+					n1.clearMatchDescriptionCache();
 				}
 				n1.clearMatchDescriptionCache();
 				n1.setNext(null);
