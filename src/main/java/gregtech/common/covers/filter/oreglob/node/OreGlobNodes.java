@@ -2,6 +2,7 @@ package gregtech.common.covers.filter.oreglob.node;
 
 import lol.Lists;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
